@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Node</title>
+</head>
+<body>
+    <h1>Add Node</h1>
+    <form action="/add_node" method="post">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required><br><br>
+        <label for="city">City:</label>
+        <input type="text" id="city" name="city" required><br><br>
+        <label for="position">Position:</label>
+        <input type="text" id="position" name="position" required><br><br>
+
+        <h2>Select existing nodes to connect to:</h2>
+        <div id="existing-nodes"></div>
+
+        <button type="submit">Add Node</button>
+    </form>
+
+    <script>
+        // Function to fetch existing nodes from the server
+        async function fetchExistingNodes() {
+            const response = await fetch('/get_existing_nodes');
+            const existingNodes = await response.json();
+            return existingNodes;
+        }
+
+        // Function to display existing nodes as checkboxes
+        async function displayExistingNodes() {
+            const existingNodes = await fetchExistingNodes();
+            const existingNodesDiv = document.getElementById('existing-nodes');
+
+            existingNodes.forEach(node => {
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = 'selected_nodes';
+                checkbox.value = node.node_id;
+                const label = document.createElement('label');
+                label.textContent = `${node.name} (ID: ${node.node_id})`;
+                label.appendChild(checkbox);
+                existingNodesDiv.appendChild(label);
+                existingNodesDiv.appendChild(document.createElement('br'));
+            });
+        }
+
+        // Call the function to display existing nodes when the page loads
+        displayExistingNodes();
+    </script>
+</body>
+</html>
