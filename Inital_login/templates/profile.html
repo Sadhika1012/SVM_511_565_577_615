@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Profile</title>
+</head>
+<body>
+    <h2>Profile</h2>
+    <p>Name: {{ user.name }}</p>
+    <p>City: {{ user.city }}</p>
+    <p>Position: {{ user.position }}</p>
+    <a href="{{ url_for('logout') }}">Logout</a>
+</body>
+</html>
