@@ -12,6 +12,11 @@ from transformers import AutoTokenizer, AutoModel
 import torch
 import torch.nn.functional as F
 import requests
+import jellyfish
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics import jaccard_score
+import numpy as np
+
 
 
 app = Flask(__name__)
@@ -264,28 +269,91 @@ def mean_pooling(model_output, attention_mask):
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 # Function to compute cosine similarity between a source profile and a list of target profiles
+# def compute_similarity_scores(source_profile, target_profiles):
+#     """
+#     Computes similarity scores between a source profile and a list of target profiles using 
+#     cosine similarity and Levenshtein ratio.
+
+#     Args:
+#         source_profile (dict): The profile data of the source user.
+#         target_profiles (list of dict): A list of target profiles for comparison.
+
+#     Returns:
+#         list: A list of similarity scores for each target profile.
+#     """
+#     similarity_scores = []
+#     for target_profile in target_profiles:
+#         valid_attributes = [attr for attr in target_profile.keys() if pd.notna(target_profile[attr])]
+#         if 'username' in valid_attributes:
+#             valid_attributes.remove('username')
+       
+        
+#         modified_source_sentence = concatenate_profile(source_profile, valid_attributes)
+#         modified_target_sentence = concatenate_profile(target_profile, valid_attributes)
+
+#         encoded_input = tokenizer([modified_source_sentence, modified_target_sentence], padding=True, truncation=True, return_tensors='pt')
+
+#         with torch.no_grad():
+#             model_output = model(**encoded_input)
+
+#         sentence_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+#         sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
+
+#         cosine_similarity = F.cosine_similarity(sentence_embeddings[0].unsqueeze(0), sentence_embeddings[1].unsqueeze(0)).item()
+#         levenshtein_similarity = Levenshtein.ratio(modified_source_sentence, modified_target_sentence)
+#         combined_similarity = (cosine_similarity * 0.85 + levenshtein_similarity * 0.15)
+
+#         similarity_scores.append(combined_similarity)
+
+#     return similarity_scores
+
+
+
+# Define a simple QWERTY keyboard layout
+keyboard_layout = {
+    'q': (0, 0), 'w': (0, 1), 'e': (0, 2), 'r': (0, 3), 't': (0, 4),
+    'y': (0, 5), 'u': (0, 6), 'i': (0, 7), 'o': (0, 8), 'p': (0, 9),
+    'a': (1, 0.5), 's': (1, 1.5), 'd': (1, 2.5), 'f': (1, 3.5), 'g': (1, 4.5),
+    'h': (1, 5.5), 'j': (1, 6.5), 'k': (1, 7.5), 'l': (1, 8.5),
+    'z': (2, 1), 'x': (2, 2), 'c': (2, 3), 'v': (2, 4), 'b': (2, 5),
+    'n': (2, 6), 'm': (2, 7)
+}
+
+def keyboard_distance(s1, s2):
+    distance = 0
+    len_diff = abs(len(s1) - len(s2))
+    distance += len_diff * 2  # Penalize for differing lengths
+
+    min_len = min(len(s1), len(s2))
+    for i in range(min_len):
+        char1 = s1[i].lower()
+        char2 = s2[i].lower()
+        if char1 in keyboard_layout and char2 in keyboard_layout:
+            pos1 = keyboard_layout[char1]
+            pos2 = keyboard_layout[char2]
+            # Euclidean distance
+            dist = np.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
+            distance += dist
+        else:
+            # If character not in layout, assign a default distance
+            distance += 2
+    return distance
+
+# Function to compute cosine similarity between a source profile and a list of target profiles
 def compute_similarity_scores(source_profile, target_profiles):
-    """
-    Computes similarity scores between a source profile and a list of target profiles using 
-    cosine similarity and Levenshtein ratio.
-
-    Args:
-        source_profile (dict): The profile data of the source user.
-        target_profiles (list of dict): A list of target profiles for comparison.
-
-    Returns:
-        list: A list of similarity scores for each target profile.
-    """
     similarity_scores = []
+    
     for target_profile in target_profiles:
+        # valid_attributes = [attr for attr in target_profile.keys() if pd.notna(target_profile[attr])]
         valid_attributes = [attr for attr in target_profile.keys() if pd.notna(target_profile[attr])]
         if 'username' in valid_attributes:
             valid_attributes.remove('username')
+        print(valid_attributes)
        
-        
         modified_source_sentence = concatenate_profile(source_profile, valid_attributes)
         modified_target_sentence = concatenate_profile(target_profile, valid_attributes)
 
+        # Compute Cosine Similarity
         encoded_input = tokenizer([modified_source_sentence, modified_target_sentence], padding=True, truncation=True, return_tensors='pt')
 
         with torch.no_grad():
@@ -295,13 +363,44 @@ def compute_similarity_scores(source_profile, target_profiles):
         sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
 
         cosine_similarity = F.cosine_similarity(sentence_embeddings[0].unsqueeze(0), sentence_embeddings[1].unsqueeze(0)).item()
-        levenshtein_similarity = Levenshtein.ratio(modified_source_sentence, modified_target_sentence)
-        combined_similarity = (cosine_similarity * 0.85 + levenshtein_similarity * 0.15)
+
+        # Compute Jaro-Winkler Similarity
+        jaro_winkler_similarity = jellyfish.jaro_winkler_similarity(modified_source_sentence, modified_target_sentence)
+        print("jaro-winkler similarity is: ", jaro_winkler_similarity)
+
+        # Compute Damerau-Levenshtein Distance and normalize it
+        damerau_levenshtein_distance = jellyfish.damerau_levenshtein_distance(modified_source_sentence, modified_target_sentence)
+        max_len = max(len(modified_source_sentence), len(modified_target_sentence))
+        damerau_levenshtein_similarity = 1 - damerau_levenshtein_distance / max_len if max_len > 0 else 0
+
+        # Compute Keyboard Distance and normalize it
+        keyboard_dist = keyboard_distance(modified_source_sentence, modified_target_sentence)
+        # Assuming maximum possible keyboard distance as 20 for normalization (adjust as needed)
+        keyboard_similarity = 1 - min(keyboard_dist / 20, 1)
+
+        # Compute Jaccard Index
+        # Tokenize the sentences
+        vectorizer = CountVectorizer().fit([modified_source_sentence, modified_target_sentence])
+        vec1 = vectorizer.transform([modified_source_sentence]).toarray()[0]
+        vec2 = vectorizer.transform([modified_target_sentence]).toarray()[0]
+        if np.count_nonzero(vec1) == 0 or np.count_nonzero(vec2) == 0:
+            jaccard_sim = 0
+        else:
+            jaccard_sim = jaccard_score(vec1, vec2, average='micro')
+
+        # Aggregate similarities with weights
+        # Adjust weights as per the importance of each metric
+        combined_similarity = (
+            cosine_similarity * 0.4 +
+            jaro_winkler_similarity * 0.2 +
+            damerau_levenshtein_similarity * 0.2 +
+            keyboard_similarity * 0.1 +
+            jaccard_sim * 0.1
+        )
 
         similarity_scores.append(combined_similarity)
 
     return similarity_scores
-
 
 
 @app.route('/find-clones', methods=['POST'])
@@ -319,7 +418,7 @@ def find_clones():
     cleaned_profile = {k: (v if pd.notna(v) else '') for k, v in data.items()}
     
     # Read profiles from CSV
-    csv_file_path = 'newdataset3.csv'
+    csv_file_path = 'newdataset1.csv'
     df = pd.read_csv(csv_file_path)
     
     # Replace NaN values with empty strings in the DataFrame
@@ -339,7 +438,6 @@ def find_clones():
     result = [{"profile": profile, "score": score} for profile, score in zip(target_profiles, similarity_scores)]
     
     return jsonify({"success": True, "result": result})
-
 
 # Endpoint to store flagged clone
 
