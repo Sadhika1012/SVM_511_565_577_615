@@ -20,13 +20,23 @@
 }
 
 .profile-picture {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background-color: #e0e0e0;
-    margin-right: 20px;
-    /* Add profile picture background or image here */
+    width: 120px; /* Width of the circular container */
+    height: 120px; /* Height of the circular container */
+    border-radius: 50%; /* Makes the container circular */
+    background-color: #e0e0e0; /* Background color for the container */
+    margin-right: 20px; /* Margin to the right */
+    display: flex; /* Center the image within the container */
+    align-items: center; /* Center the image vertically */
+    justify-content: center; /* Center the image horizontally */
+    overflow: hidden; /* Hide any overflowing parts of the image */
 }
+
+.profile-picture img {
+    width: 100%; /* Make the image take the full width of the container */
+    height: 100%; /* Make the image take the full height of the container */
+    object-fit: cover; /* Scale the image to cover the container, maintaining aspect ratio */
+}
+
 
 .profile-info {
     flex: 1;
@@ -68,5 +78,58 @@
 }
 
 .logout-button:hover {
-    background-color: #005582;
+    background-color: #003e60;
+}
+
+.find-clones-button {
+    margin-top: 20px;
+    margin-left: 10px;
+    padding: 10px 15px;
+    background-color: #0073b1;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.find-clones-button:hover {
+    background-color: #003e60;
+}
+
+.clones-list {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+}
+
+.clone-item {
+    background-color: #fff;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.clone-item h3 {
+    margin: 0;
+    font-size: 1.2em;
+}
+.flag-button {
+    padding: 8px 12px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.flag-button:hover {
+    background-color: #c82333;
 }
