@@ -64,7 +64,7 @@ const Profile = () => {
 
     // Filter out the user's own profile from the clones list
     const filteredClones = clones.filter(
-        clone => clone.profile.username !== user.username && clone.score > 0.7
+        clone => clone.profile.username !== user.username && clone.score > 0.6
     );
 
     const handleFlagClone = async (clone) => {
