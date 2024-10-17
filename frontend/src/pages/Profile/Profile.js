@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './Profile.css'; // Import the CSS file
-import def_img from '../../assests/linkedin_img.jpg';
+import def_img from '../../assets/linkedin_img.jpg';
 
 const Profile = () => {
     const location = useLocation();
