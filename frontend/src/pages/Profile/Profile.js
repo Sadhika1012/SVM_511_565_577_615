@@ -39,34 +39,59 @@ const Profile = () => {
 
     const handleFindClones = async () => {
         try {
-            const response = await fetch('http://localhost:5000/find-clones', {
+            // Call the clone detection API
+            const cloneResponse = await fetch('http://localhost:5000/find-clones', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(user),
-                credentials: 'include', // Include credentials if needed
+                credentials: 'include',
             });
 
-            const data = await response.json();
+            const cloneData = await cloneResponse.json();
 
-            if (response.ok) {
-                console.log('Clones found:', data.result);
-                // Handle displaying clones here
-                setClones(data.result); // Update state with the results
-            } else {
-                console.error('Find clones failed:', data.message);
+            if (!cloneResponse.ok) {
+                console.error('Find clones failed:', cloneData.message);
+                return;
             }
+
+            let avatarComparisonResults = [];
+            if (user.avatar && user.avatar.trim() !== "") {
+                const avatarResponse = await fetch('http://localhost:5000/compare-avatars', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_profile: { ...user, avatar_base64: user.avatar } }),
+                    credentials: 'include',
+                });
+        
+                const avatarData = await avatarResponse.json();
+                if (avatarResponse.ok) {
+                    avatarComparisonResults = avatarData.results;
+                } else {
+                    console.error('Avatar comparison failed:', avatarData.error);
+                }
+            }
+        
+            // Combine clone and avatar comparison results
+            const combinedResults = cloneData.result.map(clone => {
+                const avatarResult = avatarComparisonResults.find(
+                    result => result.username === clone.profile.username
+                );
+                
+                const deepfaceScore = avatarResult ? avatarResult.deepface_score.toFixed(2) : 'N/A';
+                const ssimScore = avatarResult ? avatarResult.ssim_score.toFixed(2) : 'N/A';
+        
+                return {
+                    ...clone,
+                    deepface_score: deepfaceScore,
+                    ssim_score: ssimScore,
+                };
+            });
+        
+            setClones(combinedResults);
         } catch (error) {
             console.error('Find clones failed', error);
         }
     };
-
-    // Filter out the user's own profile from the clones list
-    const filteredClones = clones.filter(
-        clone => clone.profile.username !== user.username && clone.score > 0.6
-    );
-
     const handleFlagClone = async (clone) => {
         try {
             const response = await fetch('http://localhost:5000/flagged-clones', {
@@ -93,7 +118,7 @@ const Profile = () => {
             console.error('Error flagging clone:', error);
         }
     };
-
+    const filteredClones = clones.filter(clone => clone.profile.username !== user.username && clone.score > 0.6);
     return (
         <div className="profile-container">
             <div className="profile-header">
@@ -120,8 +145,7 @@ const Profile = () => {
             <button className="logout-button" onClick={handleLogout}>Logout</button>
             <button className="find-clones-button" onClick={handleFindClones}>Find Clones</button>
             
-            {/* Conditionally render clone results only after the button is clicked */}
-            {clones.length > 0 && (
+            {filteredClones.length > 0 && (
                 <div className="clones-list">
                     <h2>Clone Results</h2>
                     <ul>
@@ -134,11 +158,13 @@ const Profile = () => {
                                     <p><strong>City:</strong> {clone.profile.city}</p>
                                     <p><strong>About:</strong> {clone.profile.about}</p>
                                     <p><strong>Education:</strong> {clone.profile.education}</p>
-                                    <p><strong>Score:</strong> {clone.score.toFixed(2)}</p>
+                                    <p><strong>Profile Similarity Score:</strong> {clone.score.toFixed(2)}</p>
+                                    <p><strong>Profile Picture Similarity Score (DeepFace):</strong> {clone.deepface_score}</p>
+                                    <p><strong>Profile Picture Similarity Score (SSIM):</strong> {clone.ssim_score}</p>
                                     <button 
                                         className="flag-button" 
                                         onClick={() => handleFlagClone(clone)}
-                                        disabled={flaggedClones.includes(clone.profile.username)} // Disable after flagging
+                                        disabled={flaggedClones.includes(clone.profile.username)}
                                     >
                                         {flaggedClones.includes(clone.profile.username) ? 'Flagged' : 'Flag Clone'}
                                     </button>

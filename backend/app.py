@@ -16,6 +16,16 @@ import jellyfish
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import jaccard_score
 import numpy as np
+import torch
+import torch.nn.functional as F
+import requests
+from deepface import DeepFace
+import base64
+import io
+from PIL import Image
+import numpy as np
+import cv2
+from skimage.metrics import structural_similarity as compare_ssim
 
 
 
@@ -418,7 +428,7 @@ def find_clones():
     cleaned_profile = {k: (v if pd.notna(v) else '') for k, v in data.items()}
     
     # Read profiles from CSV
-    csv_file_path = 'newdataset1.csv'
+    csv_file_path = 'newdataset3.csv'
     df = pd.read_csv(csv_file_path)
     
     # Replace NaN values with empty strings in the DataFrame
@@ -523,6 +533,79 @@ def upload_csv():
 
     return jsonify({'message': 'CSV processed successfully'}), 200
 
+#----------------profile pic comparison----------------
+def get_all_profiles():
+    # Retrieve all profiles with avatar_base64 from Neo4j
+    query = "MATCH (n:N1) RETURN n.username as username, n.avatar_base64 as avatar_base64"
+    with driver.session() as session:
+        result = session.run(query)
+        return [{"username": record["username"], "avatar_base64": record["avatar_base64"]} for record in result]
+
+
+def decode_base64_image(base64_str):
+    # Decode base64 string to an image
+    image_data = np.frombuffer(base64.b64decode(base64_str), dtype=np.uint8)
+    image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+    return image
+
+@app.route('/compare-avatars', methods=['POST'])
+def compare_avatars():
+    current_profile = request.json.get('current_profile')
+    if not current_profile or not current_profile.get('avatar_base64'):
+        return jsonify({"error": "Current profile's avatar_base64 is missing"}), 400
+
+    current_avatar_base64 = current_profile['avatar_base64']
+    if not current_avatar_base64 or current_avatar_base64.strip() == "":
+        return jsonify({"error": "Current profile's avatar is empty"}), 400
+
+    # Decode the current profile's avatar
+    try:
+        current_img = decode_base64_image(current_avatar_base64)
+    except Exception as e:
+        return jsonify({"error": f"Failed to decode current profile's avatar: {str(e)}"}), 400
+
+    # Get all other profiles
+    all_profiles = get_all_profiles()
+    results = []
+
+    for profile in all_profiles:
+        avatar_base64 = profile.get('avatar_base64')
+        if not avatar_base64 or avatar_base64.strip() == "":
+            # Skip profiles with an empty or None avatar
+            continue
+
+        # Decode the other profile's avatar
+        try:
+            comparison_img = decode_base64_image(avatar_base64)
+        except Exception as e:
+            # Skip if decoding fails
+            continue
+
+        # Perform face verification
+        try:
+            verification_result = DeepFace.verify(current_img, comparison_img, model_name='Facenet', enforce_detection=False)
+            deepface_score = 1 - verification_result['distance']
+        except Exception as e:
+            # Handle any errors in face verification
+            continue
+
+        # Convert images to grayscale for SSIM calculation
+        gray_current_img = cv2.cvtColor(current_img, cv2.COLOR_BGR2GRAY)
+        gray_comparison_img = cv2.cvtColor(comparison_img, cv2.COLOR_BGR2GRAY)
+
+        # Resize the comparison image to match the dimensions of the current image
+        gray_comparison_img = cv2.resize(gray_comparison_img, (gray_current_img.shape[1], gray_current_img.shape[0]))
+
+        # Calculate the SSIM score
+        ssim_score, _ = compare_ssim(gray_current_img, gray_comparison_img, full=True)
+
+        # Append the results
+        results.append({"username": profile['username'], "deepface_score": deepface_score, "ssim_score": ssim_score})
+
+    # Sort results based on similarity scores (higher SSIM scores indicate higher similarity)
+    results = sorted(results, key=lambda x: (x['deepface_score'], -x['ssim_score']))
+
+    return jsonify({"results": results})
 
 if __name__ == '__main__':
     app.run(debug=True)
