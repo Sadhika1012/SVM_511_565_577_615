@@ -599,11 +599,18 @@ def compare_avatars():
         # Calculate the SSIM score
         ssim_score, _ = compare_ssim(gray_current_img, gray_comparison_img, full=True)
 
-        # Append the results
-        results.append({"username": profile['username'], "deepface_score": deepface_score, "ssim_score": ssim_score})
+         # Calculate the combined score with 70% weight for DeepFace and 30% for SSIM
+        combined_score = 0.85 * deepface_score + 0.15 * ssim_score
 
-    # Sort results based on similarity scores (higher SSIM scores indicate higher similarity)
-    results = sorted(results, key=lambda x: (x['deepface_score'], -x['ssim_score']))
+        results.append({
+            "username": profile['username'],
+            "deepface_score": deepface_score,
+            "ssim_score": ssim_score,
+            "combined_score": combined_score
+        })
+
+    # Sort results based on the combined score (higher indicates more similarity)
+    results = sorted(results, key=lambda x: -x['combined_score'])
 
     return jsonify({"results": results})
 

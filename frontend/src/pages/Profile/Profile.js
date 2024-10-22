@@ -79,11 +79,13 @@ const Profile = () => {
                 
                 const deepfaceScore = avatarResult ? avatarResult.deepface_score.toFixed(2) : 'N/A';
                 const ssimScore = avatarResult ? avatarResult.ssim_score.toFixed(2) : 'N/A';
+                const combinedScore=avatarResult ? avatarResult.combined_score.toFixed(2) : 'N/A';
         
                 return {
                     ...clone,
                     deepface_score: deepfaceScore,
                     ssim_score: ssimScore,
+                    combined_score: combinedScore
                 };
             });
         
@@ -161,6 +163,7 @@ const Profile = () => {
                                     <p><strong>Profile Similarity Score:</strong> {clone.score.toFixed(2)}</p>
                                     <p><strong>Profile Picture Similarity Score (DeepFace):</strong> {clone.deepface_score}</p>
                                     <p><strong>Profile Picture Similarity Score (SSIM):</strong> {clone.ssim_score}</p>
+                                    <p><strong>Combined Profile Picture Similarity Score :</strong> {clone.combined_score}</p>
                                     <button 
                                         className="flag-button" 
                                         onClick={() => handleFlagClone(clone)}
