@@ -221,6 +221,7 @@ def login():
                     'position': user_data['position'],
                     'about': user_data.get('about', ''),
                     'education': user_data.get('education', ''),
+                    'creation_time':user_data['creation_time'],
                     'avatar': user_data.get('avatar_base64', '')
                 }
                 print("Avatar Base64:", user_data.get('avatar_base64', ''))
@@ -412,6 +413,18 @@ def compute_similarity_scores(source_profile, target_profiles):
 
     return similarity_scores
 
+def get_creation_time_by_username(username):
+    """Fetch the creation_time for a user from Neo4j based on their username."""
+    with driver.session(database="neo4j") as session:
+        query = """
+        MATCH (n:N1 {username: $username})
+        RETURN n.creation_time AS creation_time
+        """
+        result = session.run(query, username=username)
+        record = result.single()
+        if record:
+            return record["creation_time"]
+    return None
 
 @app.route('/find-clones', methods=['POST'])
 def find_clones():
@@ -445,7 +458,18 @@ def find_clones():
     similarity_scores = compute_similarity_scores(source_profile, target_profiles)
     
     # Include scores with profiles
-    result = [{"profile": profile, "score": score} for profile, score in zip(target_profiles, similarity_scores)]
+    result = []
+    for profile, score in zip(target_profiles, similarity_scores):
+        # Fetch the creation_time from Neo4j
+        username = profile.get('username')
+        creation_time = get_creation_time_by_username(username)
+        
+        # Add the profile, score, and creation_time to the result
+        result.append({
+            "profile": profile,
+            "score": score,
+            "creation_time": creation_time
+        })
     
     return jsonify({"success": True, "result": result})
 

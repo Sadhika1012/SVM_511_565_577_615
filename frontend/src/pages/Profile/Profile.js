@@ -85,7 +85,8 @@ const Profile = () => {
                     ...clone,
                     deepface_score: deepfaceScore,
                     ssim_score: ssimScore,
-                    combined_score: combinedScore
+                    combined_score: combinedScore,
+                   
                 };
             });
         
@@ -139,6 +140,7 @@ const Profile = () => {
                     <p className="city">{user.city}</p>
                     <p className="about">{user.about}</p>
                     <p className="education">{user.education}</p>
+                    <p>Created On: {user.creation_time}</p>
                 </div>
             </div>
             <div className="profile-content">
@@ -164,6 +166,7 @@ const Profile = () => {
                                     <p><strong>Profile Picture Similarity Score (DeepFace):</strong> {clone.deepface_score}</p>
                                     <p><strong>Profile Picture Similarity Score (SSIM):</strong> {clone.ssim_score}</p>
                                     <p><strong>Combined Profile Picture Similarity Score :</strong> {clone.combined_score}</p>
+                                    <p><strong>Created On:</strong> {clone.creation_time || 'N/A'}</p>
                                     <button 
                                         className="flag-button" 
                                         onClick={() => handleFlagClone(clone)}
