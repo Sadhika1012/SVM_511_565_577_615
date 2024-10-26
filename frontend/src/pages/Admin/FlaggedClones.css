@@ -1,7 +1,7 @@
 .flagged-clones-container {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     padding: 20px;
     border: 1px solid #ccc;
     border-radius: 10px;
@@ -11,6 +11,7 @@
     width: 80%;
 }
 
+/* Original Profile & Clone Card Containers */
 .profile-card, .clone-card {
     background-color: #fff;
     padding: 20px;
@@ -18,7 +19,28 @@
     border: 1px solid #ddd;
     box-shadow: 0px 1px 5px rgba(0, 0, 0, 0.1);
     width: 45%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start; /* Align items to the top */
+    min-height: 250px;
+    gap: 10px; /* Space out items consistently */
 }
+
+/* Header and Paragraph Styling for Profile Cards */
+.profile-card h3, .clone-card h3 {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #333;
+    margin: 0; /* Remove extra margin to align closely with following elements */
+}
+
+.profile-card p, .clone-card p {
+    font-size: 1rem;
+    color: #666;
+    margin: 5px 0; /* Slight margin to space username text */
+    word-wrap: break-word; /* Ensure text wraps inside container */
+}
+
 
 h3, p {
     margin: 5px 0;
@@ -39,26 +61,77 @@ h3, p {
     left: 0;
     color: #4CAF50;
 }
+
+.button-container {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+}
+
+.delete-button, .analysis-button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+}
+
 .delete-button {
-    background-color: #ff4d4d; /* Red background color to indicate danger */
-    color: white; /* White text color for better contrast */
-    border: none; /* Remove default border */
-    padding: 10px 20px; /* Add some padding */
-    border-radius: 5px; /* Rounded corners */
-    cursor: pointer; /* Change cursor to pointer on hover */
-    font-weight: bold; /* Bold text */
-    transition: background-color 0.3s ease; /* Smooth transition for background color */
+    background-color: #ff4d4d;
+    color: white;
 }
 
 .delete-button:hover {
-    background-color: #ff1a1a; /* Darker red on hover */
+    background-color: #ff1a1a;
 }
 
-.delete-button:active {
-    background-color: #cc0000; /* Even darker red when active (on click) */
+.analysis-button {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
 }
 
-.delete-button:focus {
-    outline: none; /* Remove focus outline */
-    box-shadow: 0 0 5px rgba(255, 77, 77, 0.8); /* Add a subtle shadow when focused */
+.analysis-button:hover {
+    background: linear-gradient(135deg, #0056b3, #003d80);
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: #fff;
+    padding: 20px;
+    width: 90vw;
+    height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    overflow-y: auto;
+}
+
+.close-button {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.close-button:hover {
+    background-color: #d32f2f;
 }

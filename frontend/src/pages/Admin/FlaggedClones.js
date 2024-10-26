@@ -3,6 +3,8 @@ import './FlaggedClones.css';
 
 const FlaggedClones = () => {
     const [flaggedClones, setFlaggedClones] = useState([]);
+    const [analysisResult, setAnalysisResult] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Fetch flagged clones from the backend on component mount
     useEffect(() => {
@@ -29,14 +31,42 @@ const FlaggedClones = () => {
             });
 
             if (response.ok) {
-                // Remove the deleted clone from the UI
-                setFlaggedClones(flaggedClones.filter(clone => clone.flaggedUsername !== flaggedUsername));
+                setFlaggedClones(prevClones => prevClones.filter(clone => clone.flaggedUsername !== flaggedUsername));
             } else {
                 console.error('Error deleting clone');
             }
         } catch (error) {
             console.error('Error deleting clone:', error);
         }
+    };
+
+    // Handle analysis and open modal
+    const handleAnalysis = async (flaggedUsername) => {
+        try {
+            const response = await fetch('http://localhost:5000/analyze-impact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: flaggedUsername }), // Send the username with "username" key
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                setAnalysisResult(result);
+                setIsModalOpen(true);  // Open the modal
+            } else {
+                console.error('Error performing analysis');
+            }
+        } catch (error) {
+            console.error('Error performing analysis:', error);
+        }
+    };
+
+    // Close the modal
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setAnalysisResult(null);
     };
 
     return (
@@ -60,11 +90,36 @@ const FlaggedClones = () => {
                             >
                                 Delete
                             </button>
+                            <button
+                                className="analysis-button"
+                                onClick={() => handleAnalysis(clone.flaggedUsername)}
+                            >
+                                Impact Analysis
+                            </button>
                         </div>
                     </div>
                 ))
             ) : (
                 <p>No flagged clones found</p>
+            )}
+
+            {/* Modal */}
+            {isModalOpen && (
+                <div className="modal-overlay" onClick={closeModal}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <h4>Impact Analysis Result</h4>
+                        {analysisResult && (
+                            <>
+                                <p><strong>Username:</strong> {analysisResult.username}</p>
+                                <p><strong>Node ID:</strong> {analysisResult.node_id}</p>
+                                <p><strong>Contribution:</strong> {JSON.stringify(analysisResult.contribution)}</p>
+                                <p><strong>Modularity:</strong> {analysisResult.modularity}</p>
+                                <p><strong>Influence %:</strong> {analysisResult.influence_percentage}%</p>
+                            </>
+                        )}
+                        <button className="close-button" onClick={closeModal}>Close</button>
+                    </div>
+                </div>
             )}
         </div>
     );
