@@ -26,6 +26,8 @@ from PIL import Image
 import numpy as np
 import cv2
 from skimage.metrics import structural_similarity as compare_ssim
+import networkx as nx
+from networkx.algorithms import community
 
 
 
@@ -637,6 +639,148 @@ def compare_avatars():
     results = sorted(results, key=lambda x: -x['combined_score'])
 
     return jsonify({"results": results})
+
+
+
+#-----------------------impact----------------
+def fetch_graph_from_neo4j():
+    edge_query = """
+    MATCH (n:N1)-[r]->(m:N1)
+    RETURN id(n) AS source, id(m) AS target, type(r) AS relationship
+    """
+    node_query = """
+    MATCH (n:N1)
+    RETURN id(n) AS node_id
+    """
+    print("came inside graph1")
+    with driver.session() as session:
+        # Fetch edges and create a list of (source, target) tuples
+        edge_result = session.run(edge_query)
+        edges = [(record['source'], record['target']) for record in edge_result]
+
+        # Fetch all nodes to ensure isolated nodes are included
+        node_result = session.run(node_query)
+        nodes = [record['node_id'] for record in node_result]
+    print("cm inside graph2")
+    # Create a N1workX graph
+    
+    G = nx.Graph()
+    print("working")
+    G.add_nodes_from(nodes)  # Add all nodes (including isolated)
+    G.add_edges_from(edges)   # Add edges
+    print("came inside graph3")
+    return G
+
+
+# Function to get node ID from username
+def get_node_id_from_username(username, G):
+    query = """
+    MATCH (n:N1 {username: $username})
+    RETURN id(n) AS node_id
+    """
+    with driver.session() as session:
+        result = session.run(query, username=username)
+        node = result.single()
+
+    # Return None if node is not found instead of raising an exception
+    if node:
+        return node["node_id"]
+    else:
+        return None  # Return None for a username not found
+
+# Step 2: Community detection using Girvan-Newman method
+def detect_communities_girvan_newman(G):
+    print("detect_communities working fine1")
+    comp = community.girvan_newman(G)
+    print("detect_communities working fine2")
+    communities = next(comp)
+    print("detect_communities working fine3")
+    partition = {node: i for i, comm in enumerate(communities) for node in comm}
+    print("detect_communities working fine4")
+    nx.set_node_attributes(G, partition, "community")
+    print("detect_communities working fine5")
+    return partition
+
+# Step 3: Calculate Modularity of the entire graph
+def calculate_modularity(G, partition):
+    m = G.number_of_edges()
+    modularity = 0
+    for community_id in set(partition.values()):
+        nodes_in_community = [node for node, comm in partition.items() if comm == community_id]
+        subgraph = G.subgraph(nodes_in_community)
+        lc = subgraph.number_of_edges()
+        dc = sum(G.degree(node) for node in nodes_in_community)
+        modularity += (lc / m) - (dc**2 / (4 * m**2)) if m > 0 else 0
+    return modularity
+
+# Step 4: Calculate node's local contribution to modularity vitality
+def calculate_local_contribution(G, partition, node_id):
+    if node_id not in partition:
+        return None
+
+    community_id = partition[node_id]
+    intra_community_edges = sum(1 for neighbor in G.neighbors(node_id) if partition[neighbor] == community_id)
+    inter_community_edges = G.degree(node_id) - intra_community_edges
+    total_edges = G.number_of_edges()
+    local_modularity = (intra_community_edges / total_edges) - \
+                       (G.degree(node_id) ** 2 / (4 * total_edges ** 2)) if total_edges > 0 else 0
+
+    return {
+        "intra_community_edges": intra_community_edges,
+        "inter_community_edges": inter_community_edges,
+        "local_contribution": intra_community_edges - inter_community_edges,
+        "local_modularity": local_modularity
+    }
+
+def calculate_influence_percentage(G, partition, contribution, modularity):
+    total_edges = G.number_of_edges()
+    local_modularity = contribution['local_modularity']
+    intra_community_edges = contribution['intra_community_edges']
+    inter_community_edges = contribution['inter_community_edges']
+
+    weight_local = 0.6
+    weight_edges = 0.4
+    influence_percentage = (
+        (local_modularity / modularity * weight_local) +
+        ((intra_community_edges - inter_community_edges) / total_edges * weight_edges)
+    ) * 100 if modularity != 0 and total_edges > 0 else 0
+
+    return influence_percentage
+
+@app.route('/analyze-impact', methods=['POST','GET'])
+def analyze():
+    data = request.get_json()
+    username = data.get("username")
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+
+    G = fetch_graph_from_neo4j()
+    print("fetch graph working fine")
+    node_id = get_node_id_from_username(username, G)
+    print("get_node_id_working_fine:",node_id)
+    if node_id is None:
+        return jsonify({"error": f"Username '{username}' not found in the graph"}), 404
+
+    partition = detect_communities_girvan_newman(G)
+    print("detect_communities working fine")
+    modularity = calculate_modularity(G, partition)
+    print("calculate_modularity working fine")
+    contribution = calculate_local_contribution(G, partition, node_id)
+    print("calculate_local working fine")
+    if contribution is None:
+        return jsonify({"error": f"Node {node_id} not found in any detected community"}), 404
+
+    influence_percentage = calculate_influence_percentage(G, partition, contribution, modularity)
+    print("calculate influence working fine")
+    result = {
+        "username": username,
+        "node_id": node_id,
+        "contribution": contribution,
+        "modularity": modularity,
+        "influence_percentage": round(influence_percentage, 2)
+    }
+    return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
