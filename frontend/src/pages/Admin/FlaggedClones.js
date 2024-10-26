@@ -41,20 +41,20 @@ const FlaggedClones = () => {
     };
 
     // Handle analysis and open modal
-    const handleAnalysis = async (flaggedUsername) => {
+    const handleAnalysis = async (originalUsername, cloneUsername) => {
         try {
             const response = await fetch('http://localhost:5000/analyze-impact', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ username: flaggedUsername }), // Send the username with "username" key
+                body: JSON.stringify({ original_username: originalUsername, clone_username: cloneUsername }),
             });
 
             if (response.ok) {
                 const result = await response.json();
                 setAnalysisResult(result);
-                setIsModalOpen(true);  // Open the modal
+                setIsModalOpen(true);
             } else {
                 console.error('Error performing analysis');
             }
@@ -92,7 +92,7 @@ const FlaggedClones = () => {
                             </button>
                             <button
                                 className="analysis-button"
-                                onClick={() => handleAnalysis(clone.flaggedUsername)}
+                                onClick={() => handleAnalysis(clone.originalUsername, clone.flaggedUsername)}
                             >
                                 Impact Analysis
                             </button>
@@ -110,11 +110,15 @@ const FlaggedClones = () => {
                         <h4>Impact Analysis Result</h4>
                         {analysisResult && (
                             <>
-                                <p><strong>Username:</strong> {analysisResult.username}</p>
-                                <p><strong>Node ID:</strong> {analysisResult.node_id}</p>
+                                <p><strong>Original Username:</strong> {analysisResult.original_username}</p>
+                                <p><strong>Clone Username:</strong> {analysisResult.clone_username}</p>
                                 <p><strong>Contribution:</strong> {JSON.stringify(analysisResult.contribution)}</p>
                                 <p><strong>Modularity:</strong> {analysisResult.modularity}</p>
                                 <p><strong>Influence %:</strong> {analysisResult.influence_percentage}%</p>
+                                <p><strong>Clone Community:</strong> {(analysisResult.clone_community || []).join(', ')}</p>
+                                <p><strong>Original Community:</strong> {(analysisResult.original_community || []).join(', ')}</p>
+                                <p><strong>Intersecting Communities:</strong> {(analysisResult.intersecting_communities || []).join(', ')}</p>
+                                <p><strong>Common Neighbors:</strong> {(analysisResult.common_neighbors || []).join(', ')}</p>
                             </>
                         )}
                         <button className="close-button" onClick={closeModal}>Close</button>
