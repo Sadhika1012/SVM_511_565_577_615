@@ -17,7 +17,7 @@ def update_avatar_in_neo4j(uri, user, password, node_id, base64_image):
 
     with driver.session(database="neo4j") as session:
         query = """
-        MATCH (n:N1)
+        MATCH (n:Net)
         WHERE id(n) = $node_id
         SET n.avatar_base64 = $base64_image
         """
@@ -27,12 +27,12 @@ def update_avatar_in_neo4j(uri, user, password, node_id, base64_image):
 
 if __name__ == "__main__":
     # Path to the JPEG image
-    image_path = "mod2.jpg"
+    image_path = "mod5.jpg"
 
 
 
     # Node ID in Neo4j
-    node_id = 1802 # Replace with the actual node ID
+    node_id = 4052 # Replace with the actual node ID
 
     # Convert the image to base64
     base64_image = convert_image_to_base64(image_path)

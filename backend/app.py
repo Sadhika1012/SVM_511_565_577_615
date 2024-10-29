@@ -28,6 +28,7 @@ import cv2
 from skimage.metrics import structural_similarity as compare_ssim
 import networkx as nx
 from networkx.algorithms import community
+from networkx.algorithms.community import modularity
 
 
 
@@ -57,7 +58,7 @@ def fetch_graph_data():
     """
     with connect_to_neo4j().session() as session:
         
-        result = session.run("MATCH (n1:N1)-[r]->(n2:N1) RETURN n1, r, n2")
+        result = session.run("MATCH (n1:Net)-[r]->(n2:Net) RETURN n1, r, n2")
         nodes = []
         edges = []
         
@@ -206,7 +207,7 @@ def login():
     password = data.get('password')
     
     with connect_to_neo4j().session() as session:
-        user = session.run("MATCH (u:N1 {name: $name}) RETURN u", name=name).single()
+        user = session.run("MATCH (u:Net {name: $name}) RETURN u", name=name).single()
 
         if user:
             user_data = user['u']
@@ -419,7 +420,7 @@ def get_creation_time_by_username(username):
     """Fetch the creation_time for a user from Neo4j based on their username."""
     with driver.session(database="neo4j") as session:
         query = """
-        MATCH (n:N1 {username: $username})
+        MATCH (n:Net {username: $username})
         RETURN n.creation_time AS creation_time
         """
         result = session.run(query, username=username)
@@ -443,7 +444,7 @@ def find_clones():
     cleaned_profile = {k: (v if pd.notna(v) else '') for k, v in data.items()}
     
     # Read profiles from CSV
-    csv_file_path = 'newdataset3.csv'
+    csv_file_path = 'newdataset1.csv'
     df = pd.read_csv(csv_file_path)
     
     # Replace NaN values with empty strings in the DataFrame
@@ -513,7 +514,7 @@ def delete_flagged_clone(flagged_username):
 # Helper function to update user with base64 avatar
 def update_user_avatar(tx, username, avatar_base64):
     query = """
-    MATCH (u:N1 {username: $username})
+    MATCH (u:Net {username: $username})
     SET u.avatar_base64 = $avatar_base64
     """
     #print("This is base64",avatar_base64)
@@ -562,7 +563,7 @@ def upload_csv():
 #----------------profile pic comparison----------------
 def get_all_profiles():
     # Retrieve all profiles with avatar_base64 from Neo4j
-    query = "MATCH (n:N1) RETURN n.username as username, n.avatar_base64 as avatar_base64"
+    query = "MATCH (n:Net) RETURN n.username as username, n.avatar_base64 as avatar_base64"
     with driver.session() as session:
         result = session.run(query)
         return [{"username": record["username"], "avatar_base64": record["avatar_base64"]} for record in result]
@@ -642,13 +643,15 @@ def compare_avatars():
 
 
 
+
+
 def fetch_graph_from_neo4j():
     edge_query = """
-    MATCH (n:N1)-[r]->(m:N1)
+    MATCH (n:Net)-[r]->(m:Net)
     RETURN n.username AS source, m.username AS target, type(r) AS relationship
     """
     node_query = """
-    MATCH (n:N1)
+    MATCH (n:Net)
     RETURN n.username AS username
     """
     print("Starting graph creation based on usernames...")
@@ -671,11 +674,10 @@ def fetch_graph_from_neo4j():
     return G
 
 
-
 # Function to get node ID from username
 def get_node_id_from_username(username, G):
     query = """
-    MATCH (n:N1 {username: $username})
+    MATCH (n:Net {username: $username})
     RETURN id(n) AS node_id
     """
     with driver.session() as session:
@@ -683,68 +685,89 @@ def get_node_id_from_username(username, G):
         node = result.single()
 
     # Return None if node is not found instead of raising an exception
-    if node:
-        return node["node_id"]
-    else:
-        return None  # Return None for a username not found
-
-# Step 2: Community detection using Girvan-Newman method
-def detect_communities_girvan_newman(G, clone_username, original_username):
-    print("Starting community detection using Girvan-Newman")
-    comp = community.girvan_newman(G)
-    communities = next(comp)  # Get the first partition of communities
-
-    # Initialize the communities for the specified usernames
-    clone_community = None
-    original_community = None
-
-    # Loop through each community and find the specified usernames
-    for community1 in communities:
-        if clone_username in community1:
-            clone_community = set(community1)
-        if original_username in community1:
-            original_community = set(community1)
-
-    # Create a partition dictionary for the community assignment
-    partition = {node: i for i, comm in enumerate(communities) for node in comm}
-    print("Partition created:", partition)
-
-    # Set the node attributes in the graph
-    nx.set_node_attributes(G, partition, "community")
-    print("Community attributes set for nodes")
-
-    return partition, clone_community, original_community
+    return node["node_id"] if node else None
 
 
-# def detect_communities_louvain(G, clone_username, original_username):
-#     print("Louvain community detection started")
-    
-#     # Step 1: Detect communities using Louvain method
-#     communities = louvain_communities(G)
-#     print("Louvain communities detected")
-    
-#     # Step 2: Create a partition dictionary that maps each node to its community ID
-#     partition = {node: i for i, comm in enumerate(communities) for node in comm}
-#     print("Partition dictionary created")
-    
-#     # Step 3: Set the 'community' attribute for each node in the graph
-#     nx.set_node_attributes(G, partition, "community")
-#     print("Community attributes set for each node")
-    
-#     # Step 4: Find the communities for clone and original usernames
-#     clone_community = None
-#     original_community = None
+def calculate_degree_centrality(graph):
+    """Calculate degree centrality for each node in the graph."""
+    return sorted(graph.degree, key=lambda x: x[1], reverse=True)
 
-#     for community in communities:
-#         if clone_username in community:
-#             clone_community = set(community)
-#         if original_username in community:
-#             original_community = set(community)
-    
-#     print(f"Clone's Community: {clone_community}")
-#     print(f"Original's Community: {original_community}")
 
-#     return partition, clone_community, original_community
+def expand_community(graph, seed, alpha):
+    """Expand a community starting from a seed node."""
+    community = set([seed])
+    neighbors = set(graph.neighbors(seed))
+
+    while neighbors:
+        neighbor = neighbors.pop()
+        community.add(neighbor)
+
+        # Check connections to community members
+        connected_to_community = sum(1 for n in graph.neighbors(neighbor) if n in community)
+        if connected_to_community / graph.degree(neighbor) >= alpha:
+            community.add(neighbor)
+            neighbors.update(set(graph.neighbors(neighbor)) - community)
+
+    return community
+
+
+def remove_subset_communities(communities):
+    """Remove communities that are subsets of other communities."""
+    non_subset_communities = []
+    for community in communities:
+        if not any(community < other for other in non_subset_communities):
+            non_subset_communities.append(community)
+    return non_subset_communities
+
+
+def partition_overlapping_nodes(graph, communities):
+    """Partition overlapping nodes among communities."""
+    return communities
+
+
+def detect_communities(graph, alpha=1.0):
+    communities = []
+    seeds = calculate_degree_centrality(graph)
+
+    while seeds:
+        seed = seeds.pop(0)[0]  # Get the node name from the degree tuple
+        if any(seed in community for community in communities):
+            continue
+
+        community = expand_community(graph, seed, alpha)
+        communities.append(community)
+
+    communities = remove_subset_communities(communities)
+    communities = partition_overlapping_nodes(graph, communities)
+
+    return communities
+
+
+def get_user_communities(graph, detected_communities, username):
+    """Get the communities for a specific username."""
+    user_communities = set()
+
+    for community in detected_communities:
+        if username in community:
+            user_communities.add(frozenset(community))  # Using frozenset to make it hashable
+
+    return user_communities
+
+
+def find_intersecting_communities(graph, detected_communities, user1, user2):
+    """Find the intersecting communities of two users."""
+    user1_communities = get_user_communities(graph, detected_communities, user1)
+    user2_communities = get_user_communities(graph, detected_communities, user2)
+
+    # Find the intersection of communities
+    intersecting_communities = user1_communities.intersection(user2_communities)
+
+    # Collect usernames in the intersecting communities
+    intersecting_usernames = set()
+    for community in intersecting_communities:
+        intersecting_usernames.update(community)
+
+    return intersecting_usernames
 
 
 # Step 3: Calculate Modularity of the entire graph
@@ -758,6 +781,7 @@ def calculate_modularity(G, partition):
         dc = sum(G.degree(node) for node in nodes_in_community)
         modularity += (lc / m) - (dc**2 / (4 * m**2)) if m > 0 else 0
     return modularity
+
 
 # Step 4: Calculate node's local contribution to modularity vitality
 def calculate_local_contribution(G, partition, username):
@@ -778,6 +802,7 @@ def calculate_local_contribution(G, partition, username):
         "local_modularity": local_modularity
     }
 
+
 def calculate_influence_percentage(G, partition, contribution, modularity):
     total_edges = G.number_of_edges()
     local_modularity = contribution['local_modularity']
@@ -792,6 +817,29 @@ def calculate_influence_percentage(G, partition, contribution, modularity):
     ) * 100 if modularity != 0 and total_edges > 0 else 0
 
     return influence_percentage
+
+def calculate_modularity_vitality(G, communities, username):
+    # Check if the username exists in the graph
+    if username not in G:
+        print(f"Username '{username}' does not exist in the graph.")
+        return None
+
+    # Calculate original modularity
+    Q_initial = modularity(G, communities)
+
+    # Remove the node from the graph
+    G.remove_node(username)
+
+    # Calculate new modularity
+    Q_new = modularity(G, communities)
+
+    # Add the node back to keep the original graph intact
+    G.add_node(username)
+
+    # Calculate modularity vitality
+    vitality = Q_initial - Q_new
+    return vitality
+
 
 @app.route('/analyze-impact', methods=['POST', 'GET'])
 def analyze():
@@ -813,28 +861,35 @@ def analyze():
     if clone_username not in G or original_username not in G:
         return jsonify({"error": f"One or both usernames ('{clone_username}', '{original_username}') not found in the graph."}), 404
 
-    # Detect communities using Girvan-Newman method
-    partition, clone_community, original_community = detect_communities_girvan_newman(G, clone_username, original_username)
+    # Detect communities using the new method
+    detected_communities = detect_communities(G)
     print("Communities detected successfully")
 
+    # Get the communities for the specified usernames
+    clone_communities = get_user_communities(G, detected_communities, clone_username)
+    original_communities = get_user_communities(G, detected_communities, original_username)
+
     # Calculate modularity
-    modularity = calculate_modularity(G, partition)
+    modularity = calculate_modularity(G, {node: frozenset(community) for community in detected_communities for node in community})
     print("Modularity calculated successfully")
 
+    
+
+
     # Calculate local contribution for the clone user
-    contribution = calculate_local_contribution(G, partition, clone_username)
+    contribution = calculate_local_contribution(G, {node: frozenset(community) for community in detected_communities for node in community}, clone_username)
     print(f"Local contribution for node {clone_username}: {contribution}")
 
     if contribution is None:
         return jsonify({"error": f"Username '{clone_username}' not found in any detected community."}), 404
 
     # Calculate influence percentage
-    influence_percentage = calculate_influence_percentage(G, partition, contribution, modularity)
+    influence_percentage = calculate_influence_percentage(G, {node: frozenset(community) for community in detected_communities for node in community}, contribution, modularity)
     print("Influence percentage calculated successfully")
 
     # Find intersection of communities
-    intersection = clone_community.intersection(original_community) if clone_community and original_community else None
-    print(intersection)
+    intersection = find_intersecting_communities(G, detected_communities, clone_username, original_username)
+    print("Intersecting communities found.")
 
     # Find neighbors and common neighbors
     neighbors_data = find_common_neighbors(clone_username, original_username, G)
@@ -847,13 +902,17 @@ def analyze():
         "contribution": contribution,
         "modularity": modularity,
         "influence_percentage": round(influence_percentage, 2),
-        "clone_community": list(clone_community) if clone_community else [],
-        "original_community": list(original_community) if original_community else [],
-        "intersecting_communities": list(intersection) if intersection else [],
+        "intersecting_communities": list(intersection),  # Convert set to list
+        "clone_community": [list(community) for community in clone_communities],  # Convert frozensets to lists
+        "original_community": [list(community) for community in original_communities],  # Convert frozensets to lists
         "common_neighbors": neighbors_data["common_neighbors"]
     }
 
+    print("Response data:", result)  # Debugging output
     return jsonify(result)
+
+
+
 
 # Function to get neighbors of a profile
 def get_neighbors(profile_username, G):

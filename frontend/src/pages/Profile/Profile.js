@@ -12,7 +12,6 @@ const Profile = () => {
 
     // Handle user not present in state (e.g., direct access to profile route)
     if (!user) {
-        // Optionally, redirect to login if user data is not found
         navigate('/login');
         return <p>Loading...</p>;
     }
@@ -39,7 +38,6 @@ const Profile = () => {
 
     const handleFindClones = async () => {
         try {
-            // Call the clone detection API
             const cloneResponse = await fetch('http://localhost:5000/find-clones', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -79,14 +77,13 @@ const Profile = () => {
                 
                 const deepfaceScore = avatarResult ? avatarResult.deepface_score.toFixed(2) : 'N/A';
                 const ssimScore = avatarResult ? avatarResult.ssim_score.toFixed(2) : 'N/A';
-                const combinedScore=avatarResult ? avatarResult.combined_score.toFixed(2) : 'N/A';
+                const combinedScore = avatarResult ? avatarResult.combined_score.toFixed(2) : 'N/A';
         
                 return {
                     ...clone,
                     deepface_score: deepfaceScore,
                     ssim_score: ssimScore,
                     combined_score: combinedScore,
-                   
                 };
             });
         
@@ -95,6 +92,7 @@ const Profile = () => {
             console.error('Find clones failed', error);
         }
     };
+
     const handleFlagClone = async (clone) => {
         try {
             const response = await fetch('http://localhost:5000/flagged-clones', {
@@ -121,7 +119,16 @@ const Profile = () => {
             console.error('Error flagging clone:', error);
         }
     };
-    const filteredClones = clones.filter(clone => clone.profile.username !== user.username && clone.score > 0.6);
+
+    // Filter clones with a final similarity score above 0.6
+    const filteredClones = clones.filter(clone => {
+        const finalSimilarityScore = clone.combined_score === "N/A" 
+            ? clone.score 
+            : 0.6 * clone.score + 0.4 * clone.combined_score;
+        
+        return clone.profile.username !== user.username && finalSimilarityScore > 0.6;
+    });
+
     return (
         <div className="profile-container">
             <div className="profile-header">
@@ -162,11 +169,12 @@ const Profile = () => {
                                     <p><strong>City:</strong> {clone.profile.city}</p>
                                     <p><strong>About:</strong> {clone.profile.about}</p>
                                     <p><strong>Education:</strong> {clone.profile.education}</p>
-                                    <p><strong>Profile Similarity Score:</strong> {clone.score.toFixed(2)}</p>
+                                    <p><strong>Textual Similarity Score:</strong> {clone.score.toFixed(2)}</p>
                                     <p><strong>Profile Picture Similarity Score (DeepFace):</strong> {clone.deepface_score}</p>
                                     <p><strong>Profile Picture Similarity Score (SSIM):</strong> {clone.ssim_score}</p>
-                                    <p><strong>Combined Profile Picture Similarity Score :</strong> {clone.combined_score}</p>
+                                    <p><strong>Combined Profile Picture Similarity Score:</strong> {clone.combined_score}</p>
                                     <p><strong>Created On:</strong> {clone.creation_time || 'N/A'}</p>
+                                    <p><strong>Final Similarity Score:</strong> {(clone.combined_score === "N/A" ? clone.score : (0.6 * clone.score + 0.4 * clone.combined_score)).toFixed(2)}</p>
                                     <button 
                                         className="flag-button" 
                                         onClick={() => handleFlagClone(clone)}
