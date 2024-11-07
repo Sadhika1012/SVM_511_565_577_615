@@ -38,9 +38,9 @@ CORS(app, supports_credentials=True)
 app.secret_key = secrets.token_hex(16)
 
 #defining neo4j connections
-uri = "neo4j+ssc://77efce7f.databases.neo4j.io:7687"
+uri = "neo4j+ssc://<your_uri>"
 username = "neo4j"
-password = "OIcHAuEMLZfaHcauVn4wK2Itx6db8iz9IaL52hHFsDs"
+password = "<your_pwd>"
 driver = GraphDatabase.driver(uri, auth=("neo4j", password))
 
 # Define connection function
