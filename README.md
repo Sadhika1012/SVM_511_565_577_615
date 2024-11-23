@@ -1,4 +1,4 @@
-# Capstone Project: Cloned Profile Detection on Social Networks
+# Capstone Project: Cloned Profile Detection and Impact Analysis on Social Networks Using Network Graphs
 
 Welcome to the repository for our capstone project. This project focuses on detecting cloned profiles on a social network using network graphs. 
 
@@ -61,6 +61,6 @@ The main objective of this project is to identify cloned profiles on social netw
 
 ## Features
 - **Profile Cloning Detection:** Identifies cloned profiles using machine learning algorithms.
-- **Network Analysis:** Analyzes the network using various centrality measures to understand the behavior of cloned profiles.
+- **Impact Analysis:** Analyzes the network and Impact of a clone profile using Modularity Vitality, Common Neighbors, Intersecting Communities to understand the impact of cloned profiles.
 
 
